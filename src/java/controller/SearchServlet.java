@@ -7,8 +7,9 @@ package controller;
 
 import dal.DAO;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -18,42 +19,20 @@ import model.Category;
 import model.Product;
 
 /**
+ * Handles product search functionality
  *
  * @author huanv
  */
 @WebServlet(name = "SearchServlet", urlPatterns = {"/search"})
 public class SearchServlet extends HttpServlet {
+    private static final Logger LOGGER = Logger.getLogger(SearchServlet.class.getName());
+    private static final String HOME_JSP = "home.jsp";
+    private static final String HOME_SERVLET = "home";
+    private static final int DEFAULT_PRODUCTS_PER_PAGE = 8;
 
-    /**
-     * Processes requests for both HTTP <code>GET</code> and <code>POST</code>
-     * methods.
-     *
-     * @param request servlet request
-     * @param response servlet response
-     * @throws ServletException if a servlet-specific error occurs
-     * @throws IOException if an I/O error occurs
-     */
-    protected void processRequest(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        response.setContentType("text/html;charset=UTF-8");
-        request.setCharacterEncoding("utf-8");
-        try (PrintWriter out = response.getWriter()) {
-            /* TODO output your page here. You may use following sample code. */
-            out.println("<!DOCTYPE html>");
-            out.println("<html>");
-            out.println("<head>");
-            out.println("<title>Servlet SearchServlet</title>");            
-            out.println("</head>");
-            out.println("<body>");
-            out.println("<h1>Servlet SearchServlet at " + request.getContextPath() + "</h1>");
-            out.println("</body>");
-            out.println("</html>");
-        }
-    }
-
-    // <editor-fold defaultstate="collapsed" desc="HttpServlet methods. Click on the + sign on the left to edit the code.">
     /**
      * Handles the HTTP <code>GET</code> method.
+     * Processes product search request
      *
      * @param request servlet request
      * @param response servlet response
@@ -63,11 +42,82 @@ public class SearchServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        processRequest(request, response);
+        response.setContentType("text/html;charset=UTF-8");
+        request.setCharacterEncoding("utf-8");
+        
+        String searchTerm = request.getParameter("search");
+        
+        // Validate search term
+        if (searchTerm == null) {
+            response.sendRedirect(HOME_SERVLET);
+            return;
+        }
+        
+        // Trim and sanitize search term
+        searchTerm = searchTerm.trim();
+        
+        try (DAO dao = new DAO()) {
+            // Get search results
+            List<Product> searchResults = dao.getProductBySearchName(searchTerm);
+            
+            // Get all categories for navigation
+            List<Category> categories = dao.getAllCategory();
+            
+            // Handle pagination
+            int page = 1;
+            int productsPerPage = DEFAULT_PRODUCTS_PER_PAGE;
+            String pageParam = request.getParameter("page");
+            
+            if (pageParam != null && !pageParam.trim().isEmpty()) {
+                try {
+                    page = Integer.parseInt(pageParam);
+                    if (page < 1) {
+                        page = 1;
+                    }
+                } catch (NumberFormatException e) {
+                    LOGGER.log(Level.WARNING, "Invalid page number: {0}", pageParam);
+                }
+            }
+            
+            int totalProducts = searchResults.size();
+            int totalPages = (totalProducts + productsPerPage - 1) / productsPerPage;
+            
+            if (page > totalPages && totalPages > 0) {
+                page = totalPages;
+            }
+            
+            int start = (page - 1) * productsPerPage;
+            int end = Math.min(page * productsPerPage, totalProducts);
+            
+            List<Product> paginatedResults = dao.getAllProductByPage(searchResults, start, end);
+            
+            // Set attributes for the view
+            request.setAttribute("products", paginatedResults);
+            request.setAttribute("categories", categories);
+            request.setAttribute("searchTerm", searchTerm);
+            request.setAttribute("page", page);
+            request.setAttribute("totalPages", totalPages);
+            request.setAttribute("totalResults", totalProducts);
+            
+            // Set CSS file for the page
+            request.setAttribute("cssfile", "home.css");
+            
+            // Log search query
+            LOGGER.log(Level.INFO, "Search query: \"{0}\", found {1} results", 
+                    new Object[]{searchTerm, totalProducts});
+            
+            // Forward to home page with search results
+            request.getRequestDispatcher(HOME_JSP).forward(request, response);
+            
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error processing search query: " + searchTerm, e);
+            response.sendRedirect(HOME_SERVLET);
+        }
     }
 
     /**
      * Handles the HTTP <code>POST</code> method.
+     * Redirects to GET method
      *
      * @param request servlet request
      * @param response servlet response
@@ -77,14 +127,7 @@ public class SearchServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        String search = request.getParameter("search").trim();
-        DAO d = new DAO();
-        List<Product> products = d.getProductBySearchName(search);
-        List<Category> categories = d.getAllCategory();
-        request.setAttribute("categories", categories);
-        request.setAttribute("products", products);
-        request.setAttribute("search", search);
-        request.getRequestDispatcher("home.jsp").forward(request, response);        
+        doGet(request, response);
     }
 
     /**
@@ -94,7 +137,6 @@ public class SearchServlet extends HttpServlet {
      */
     @Override
     public String getServletInfo() {
-        return "Short description";
-    }// </editor-fold>
-
+        return "Product Search Servlet for GameStore";
+    }
 }

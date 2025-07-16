@@ -7,8 +7,9 @@ package controller;
 
 import dal.DAO;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -18,42 +19,19 @@ import model.Category;
 import model.Product;
 
 /**
+ * Handles product detail display functionality
  *
  * @author huanv
  */
 @WebServlet(name = "DetailServlet", urlPatterns = {"/detail"})
 public class DetailServlet extends HttpServlet {
+    private static final Logger LOGGER = Logger.getLogger(DetailServlet.class.getName());
+    private static final String DETAIL_JSP = "detail.jsp";
+    private static final String HOME_SERVLET = "home";
 
-    /**
-     * Processes requests for both HTTP <code>GET</code> and <code>POST</code>
-     * methods.
-     *
-     * @param request servlet request
-     * @param response servlet response
-     * @throws ServletException if a servlet-specific error occurs
-     * @throws IOException if an I/O error occurs
-     */
-    protected void processRequest(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        response.setContentType("text/html;charset=UTF-8");
-        request.setCharacterEncoding("utf-8");
-        try (PrintWriter out = response.getWriter()) {
-            /* TODO output your page here. You may use following sample code. */
-            out.println("<!DOCTYPE html>");
-            out.println("<html>");
-            out.println("<head>");
-            out.println("<title>Servlet DetailServlet</title>");            
-            out.println("</head>");
-            out.println("<body>");
-            out.println("<h1>Servlet DetailServlet at " + request.getContextPath() + "</h1>");
-            out.println("</body>");
-            out.println("</html>");
-        }
-    }
-
-    // <editor-fold defaultstate="collapsed" desc="HttpServlet methods. Click on the + sign on the left to edit the code.">
     /**
      * Handles the HTTP <code>GET</code> method.
+     * Displays detailed information about a product
      *
      * @param request servlet request
      * @param response servlet response
@@ -63,18 +41,62 @@ public class DetailServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        request.setCharacterEncoding("UTF-8");
-        String id = request.getParameter("pid");
-        DAO d = new DAO();
-        Product p = d.getProductByProductID(id);
-        List<Category> categories = d.getAllCategory();
-        request.setAttribute("categories", categories);
-        request.setAttribute("p", p);
-        request.getRequestDispatcher("detail.jsp").forward(request, response);
+        response.setContentType("text/html;charset=UTF-8");
+        request.setCharacterEncoding("utf-8");
+        
+        String productId = request.getParameter("pid");
+        
+        // Validate product ID
+        if (productId == null || productId.trim().isEmpty()) {
+            LOGGER.log(Level.WARNING, "Product ID not provided for detail view");
+            response.sendRedirect(HOME_SERVLET);
+            return;
+        }
+        
+        try (DAO dao = new DAO()) {
+            // Get product details
+            Product product = dao.getProductByProductID(productId);
+            
+            if (product == null) {
+                LOGGER.log(Level.WARNING, "Product not found with ID: {0}", productId);
+                response.sendRedirect(HOME_SERVLET);
+                return;
+            }
+            
+            // Get all categories for navigation
+            List<Category> categories = dao.getAllCategory();
+            
+            // Get related products in the same category
+            List<Product> relatedProducts = dao.getAllProductByCategoryID(String.valueOf(product.getCategory().getId()));
+            
+            // Remove current product from related products
+            relatedProducts.removeIf(p -> p.getId() == product.getId());
+            
+            // Limit related products to 4
+            if (relatedProducts.size() > 4) {
+                relatedProducts = relatedProducts.subList(0, 4);
+            }
+            
+            // Set attributes for the view
+            request.setAttribute("detail", product);
+            request.setAttribute("categories", categories);
+            request.setAttribute("relatedProducts", relatedProducts);
+            
+            // Set CSS file for the page
+            request.setAttribute("cssfile", "detail.css");
+            
+            // Forward to detail page
+            request.getRequestDispatcher(DETAIL_JSP).forward(request, response);
+            
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error retrieving product details", e);
+            response.sendRedirect(HOME_SERVLET);
+        }
     }
 
     /**
      * Handles the HTTP <code>POST</code> method.
+     * Redirects to GET method
      *
      * @param request servlet request
      * @param response servlet response
@@ -84,7 +106,7 @@ public class DetailServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        processRequest(request, response);
+        doGet(request, response);
     }
 
     /**
@@ -94,7 +116,6 @@ public class DetailServlet extends HttpServlet {
      */
     @Override
     public String getServletInfo() {
-        return "Short description";
-    }// </editor-fold>
-
+        return "Product Detail Servlet for GameStore";
+    }
 }

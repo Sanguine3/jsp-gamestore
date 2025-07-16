@@ -7,8 +7,9 @@ package controller;
 
 import dal.DAO;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -20,42 +21,20 @@ import model.Item;
 import model.Product;
 
 /**
+ * Handles shopping cart operations including adding items to cart
  *
  * @author huanv
  */
 @WebServlet(name = "CartServlet", urlPatterns = {"/cart"})
 public class CartServlet extends HttpServlet {
+    private static final Logger LOGGER = Logger.getLogger(CartServlet.class.getName());
+    private static final String SESSION_CART_KEY = "cart";
+    private static final String SESSION_SIZE_KEY = "size";
+    private static final String CART_JSP = "cart.jsp";
 
-    /**
-     * Processes requests for both HTTP <code>GET</code> and <code>POST</code>
-     * methods.
-     *
-     * @param request servlet request
-     * @param response servlet response
-     * @throws ServletException if a servlet-specific error occurs
-     * @throws IOException if an I/O error occurs
-     */
-    protected void processRequest(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        response.setContentType("text/html;charset=UTF-8");
-        request.setCharacterEncoding("utf-8");
-        try (PrintWriter out = response.getWriter()) {
-            /* TODO output your page here. You may use following sample code. */
-            out.println("<!DOCTYPE html>");
-            out.println("<html>");
-            out.println("<head>");
-            out.println("<title>Servlet CartServlet</title>");
-            out.println("</head>");
-            out.println("<body>");
-            out.println("<h1>Servlet CartServlet at " + request.getContextPath() + "</h1>");
-            out.println("</body>");
-            out.println("</html>");
-        }
-    }
-
-    // <editor-fold defaultstate="collapsed" desc="HttpServlet methods. Click on the + sign on the left to edit the code.">
     /**
      * Handles the HTTP <code>GET</code> method.
+     * Displays the cart page
      *
      * @param request servlet request
      * @param response servlet response
@@ -65,11 +44,19 @@ public class CartServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        response.sendRedirect("cart.jsp");
+        response.setContentType("text/html;charset=UTF-8");
+        request.setCharacterEncoding("utf-8");
+        
+        // Set CSS file for the page
+        request.setAttribute("cssfile", "cart.css");
+        
+        // Forward to cart page
+        request.getRequestDispatcher(CART_JSP).forward(request, response);
     }
 
     /**
      * Handles the HTTP <code>POST</code> method.
+     * Adds items to the cart
      *
      * @param request servlet request
      * @param response servlet response
@@ -79,36 +66,69 @@ public class CartServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
+        response.setContentType("text/html;charset=UTF-8");
+        request.setCharacterEncoding("utf-8");
+        
         HttpSession session = request.getSession();
-        session.setAttribute("size", 0);
-        Cart cart = null;
-        Object o = session.getAttribute("cart");
-        // in the cart
-        if (o != null) {
-            cart = (Cart) o;
-            // null in the cart
-        } else {
-            cart = new Cart();
+        Cart cart = getCartFromSession(session);
+        
+        String quantityRaw = request.getParameter("num");
+        String productId = request.getParameter("pid");
+        
+        // Validate parameters
+        if (quantityRaw == null || productId == null || quantityRaw.trim().isEmpty() || productId.trim().isEmpty()) {
+            LOGGER.log(Level.WARNING, "Invalid parameters for adding to cart: quantity={0}, productId={1}", 
+                    new Object[]{quantityRaw, productId});
+            request.setAttribute("errorMessage", "Invalid product information");
+            request.getRequestDispatcher(CART_JSP).forward(request, response);
+            return;
         }
-
-        String num_raw = request.getParameter("num");
-        String id = request.getParameter("pid");
-        int num;
+        
         try {
-            num = Integer.parseInt(num_raw);
-            DAO d = new DAO();
-            Product p = d.getProductByProductID(id);
-            float price = p.getPrice();
-            Item t = new Item(p, num, price);
-            cart.addItem(t);
-
+            int quantity = Integer.parseInt(quantityRaw);
+            
+            // Validate quantity
+            if (quantity <= 0) {
+                LOGGER.log(Level.WARNING, "Invalid quantity for cart: {0}", quantity);
+                request.setAttribute("errorMessage", "Quantity must be greater than zero");
+                request.getRequestDispatcher(CART_JSP).forward(request, response);
+                return;
+            }
+            
+            // Get product information
+            try (DAO dao = new DAO()) {
+                Product product = dao.getProductByProductID(productId);
+                
+                if (product == null) {
+                    LOGGER.log(Level.WARNING, "Product not found with ID: {0}", productId);
+                    request.setAttribute("errorMessage", "Product not found");
+                    request.getRequestDispatcher(CART_JSP).forward(request, response);
+                    return;
+                }
+                
+                // Add item to cart
+                double price = product.getPrice();
+                Item item = new Item(product, quantity, price);
+                cart.addItem(item);
+                
+                LOGGER.log(Level.INFO, "Added product {0} to cart, quantity: {1}", 
+                        new Object[]{productId, quantity});
+                
+                // Update session
+                updateCartSession(session, cart);
+                
+                // Forward to cart page
+                request.getRequestDispatcher(CART_JSP).forward(request, response);
+            }
         } catch (NumberFormatException e) {
-            num = 1;
+            LOGGER.log(Level.WARNING, "Invalid number format in cart", e);
+            request.setAttribute("errorMessage", "Invalid quantity format");
+            request.getRequestDispatcher(CART_JSP).forward(request, response);
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error processing cart request", e);
+            request.setAttribute("errorMessage", "An error occurred while processing your request");
+            request.getRequestDispatcher(CART_JSP).forward(request, response);
         }
-        List<Item> list = cart.getItems();
-        session.setAttribute("cart", cart);
-        session.setAttribute("size", list.size());
-        request.getRequestDispatcher("cart.jsp").forward(request, response);
     }
 
     /**
@@ -118,7 +138,30 @@ public class CartServlet extends HttpServlet {
      */
     @Override
     public String getServletInfo() {
-        return "Short description";
-    }// </editor-fold>
-
+        return "Cart Servlet for GameStore";
+    }
+    
+    /**
+     * Helper method to get cart from session or create new one if not exists
+     * 
+     * @param session The HTTP session
+     * @return The cart object
+     */
+    private Cart getCartFromSession(HttpSession session) {
+        Object cartObj = session.getAttribute(SESSION_CART_KEY);
+        Cart cart = (cartObj != null) ? (Cart) cartObj : new Cart();
+        return cart;
+    }
+    
+    /**
+     * Helper method to update cart in session
+     * 
+     * @param session The HTTP session
+     * @param cart The cart to store in session
+     */
+    private void updateCartSession(HttpSession session, Cart cart) {
+        List<Item> items = cart.getItems();
+        session.setAttribute(SESSION_CART_KEY, cart);
+        session.setAttribute(SESSION_SIZE_KEY, items.size());
+    }
 }

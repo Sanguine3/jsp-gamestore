@@ -6,51 +6,30 @@
 package controller;
 
 import java.io.IOException;
-import java.io.PrintWriter;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 
 /**
+ * Handles user logout functionality
  *
  * @author huanv
  */
 @WebServlet(name = "LogoutServlet", urlPatterns = {"/logout"})
 public class LogoutServlet extends HttpServlet {
+    private static final Logger LOGGER = Logger.getLogger(LogoutServlet.class.getName());
+    private static final String HOME_SERVLET = "home";
+    private static final String SESSION_ACCOUNT_KEY = "account";
 
-    /**
-     * Processes requests for both HTTP <code>GET</code> and <code>POST</code>
-     * methods.
-     *
-     * @param request servlet request
-     * @param response servlet response
-     * @throws ServletException if a servlet-specific error occurs
-     * @throws IOException if an I/O error occurs
-     */
-    protected void processRequest(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        response.setContentType("text/html;charset=UTF-8");
-        request.setCharacterEncoding("utf-8");
-        try (PrintWriter out = response.getWriter()) {
-            /* TODO output your page here. You may use following sample code. */
-            out.println("<!DOCTYPE html>");
-            out.println("<html>");
-            out.println("<head>");
-            out.println("<title>Servlet LogoutServlet</title>");            
-            out.println("</head>");
-            out.println("<body>");
-            out.println("<h1>Servlet LogoutServlet at " + request.getContextPath() + "</h1>");
-            out.println("</body>");
-            out.println("</html>");
-        }
-    }
-
-    // <editor-fold defaultstate="collapsed" desc="HttpServlet methods. Click on the + sign on the left to edit the code.">
     /**
      * Handles the HTTP <code>GET</code> method.
+     * Processes user logout request
      *
      * @param request servlet request
      * @param response servlet response
@@ -60,13 +39,52 @@ public class LogoutServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        HttpSession session = request.getSession();
-        session.removeAttribute("account");
-        response.sendRedirect("home");
+        response.setContentType("text/html;charset=UTF-8");
+        request.setCharacterEncoding("utf-8");
+        
+        try {
+            // Get the session but don't create a new one if it doesn't exist
+            HttpSession session = request.getSession(false);
+            
+            if (session != null) {
+                // Log the logout event
+                Object accountObj = session.getAttribute(SESSION_ACCOUNT_KEY);
+                if (accountObj != null) {
+                    LOGGER.log(Level.INFO, "User logged out");
+                }
+                
+                // Invalidate the session
+                session.invalidate();
+                LOGGER.log(Level.INFO, "Session invalidated");
+            }
+            
+            // Clear authentication cookies
+            Cookie[] cookies = request.getCookies();
+            if (cookies != null) {
+                for (Cookie cookie : cookies) {
+                    if (cookie.getName().equals("username") || 
+                        cookie.getName().equals("remember")) {
+                        
+                        cookie.setMaxAge(0);
+                        cookie.setPath("/");
+                        response.addCookie(cookie);
+                        LOGGER.log(Level.FINE, "Cleared cookie: {0}", cookie.getName());
+                    }
+                }
+            }
+            
+            // Redirect to home page
+            response.sendRedirect(HOME_SERVLET);
+            
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error during logout process", e);
+            response.sendRedirect(HOME_SERVLET);
+        }
     }
 
     /**
      * Handles the HTTP <code>POST</code> method.
+     * Redirects to GET method
      *
      * @param request servlet request
      * @param response servlet response
@@ -76,7 +94,7 @@ public class LogoutServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        processRequest(request, response);
+        doGet(request, response);
     }
 
     /**
@@ -86,7 +104,6 @@ public class LogoutServlet extends HttpServlet {
      */
     @Override
     public String getServletInfo() {
-        return "Short description";
-    }// </editor-fold>
-
+        return "Logout Servlet for GameStore";
+    }
 }

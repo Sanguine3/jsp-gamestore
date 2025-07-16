@@ -7,8 +7,9 @@ package controller;
 
 import dal.DAO;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -16,45 +17,26 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import model.Account;
+import model.Category;
 import model.Product;
 
 /**
+ * Handles product listing functionality for admin management
  *
  * @author huanv
  */
 @WebServlet(name = "ListServlet", urlPatterns = {"/list"})
 public class ListServlet extends HttpServlet {
+    private static final Logger LOGGER = Logger.getLogger(ListServlet.class.getName());
+    private static final String LIST_JSP = "list.jsp";
+    private static final String HOME_SERVLET = "home";
+    private static final String SESSION_ACCOUNT_KEY = "account";
+    private static final int ADMIN_LEVEL = 1;
+    private static final int DEFAULT_PRODUCTS_PER_PAGE = 8;
 
-    /**
-     * Processes requests for both HTTP <code>GET</code> and <code>POST</code>
-     * methods.
-     *
-     * @param request servlet request
-     * @param response servlet response
-     * @throws ServletException if a servlet-specific error occurs
-     * @throws IOException if an I/O error occurs
-     */
-    protected void processRequest(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        response.setContentType("text/html;charset=UTF-8");
-        request.setCharacterEncoding("utf-8");
-        try (PrintWriter out = response.getWriter()) {
-            /* TODO output your page here. You may use following sample code. */
-            out.println("<!DOCTYPE html>");
-            out.println("<html>");
-            out.println("<head>");
-            out.println("<title>Servlet ListServlet</title>");            
-            out.println("</head>");
-            out.println("<body>");
-            out.println("<h1>Servlet ListServlet at " + request.getContextPath() + "</h1>");
-            out.println("</body>");
-            out.println("</html>");
-        }
-    }
-
-    // <editor-fold defaultstate="collapsed" desc="HttpServlet methods. Click on the + sign on the left to edit the code.">
     /**
      * Handles the HTTP <code>GET</code> method.
+     * Displays the product list for admin management
      *
      * @param request servlet request
      * @param response servlet response
@@ -64,37 +46,75 @@ public class ListServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        HttpSession session = request.getSession();
-        Account a = (Account) session.getAttribute("account");
-        if(a.getId() != 1){
-            request.getRequestDispatcher("home").forward(request, response);
-        }
-        else{
-            DAO d = new DAO();
-        List<Product> product = d.getAllProduct();
-        int page, ppp = 6;
-        int size = product.size();
-        int num = (size % 6 == 0 ? (size / 6) : ((size / 6) + 1));
-        String xpage = request.getParameter("page");
-        if(xpage == null){
-            page = 1;
-        }else{
-            page = Integer.parseInt(xpage);
-        }
-        int start, end;
-        start = (page - 1) * ppp;
-        end = Math.min(page * ppp, size);
-        List<Product> products = d.getAllProductByPage(product, start, end);
+        response.setContentType("text/html;charset=UTF-8");
+        request.setCharacterEncoding("utf-8");
         
-        request.setAttribute("products", products);
-        request.setAttribute("page", page);
-        request.setAttribute("num", num);
-        request.getRequestDispatcher("list.jsp").forward(request, response);
-        }    
+        // Check if user is admin
+        HttpSession session = request.getSession();
+        Account account = (Account) session.getAttribute(SESSION_ACCOUNT_KEY);
+        
+        if (account == null || account.getAdminLevel() != ADMIN_LEVEL) {
+            LOGGER.log(Level.WARNING, "Unauthorized access attempt to product list management");
+            response.sendRedirect(HOME_SERVLET);
+            return;
+        }
+        
+        try (DAO dao = new DAO()) {
+            // Get all products
+            List<Product> allProducts = dao.getAllProduct();
+            
+            // Get all categories for filtering
+            List<Category> categories = dao.getAllCategory();
+            
+            // Handle pagination
+            int page = 1;
+            int productsPerPage = DEFAULT_PRODUCTS_PER_PAGE;
+            String pageParam = request.getParameter("page");
+            
+            if (pageParam != null && !pageParam.trim().isEmpty()) {
+                try {
+                    page = Integer.parseInt(pageParam);
+                    if (page < 1) {
+                        page = 1;
+                    }
+                } catch (NumberFormatException e) {
+                    LOGGER.log(Level.WARNING, "Invalid page number: {0}", pageParam);
+                }
+            }
+            
+            int totalProducts = allProducts.size();
+            int totalPages = (totalProducts + productsPerPage - 1) / productsPerPage;
+            
+            if (page > totalPages && totalPages > 0) {
+                page = totalPages;
+            }
+            
+            int start = (page - 1) * productsPerPage;
+            int end = Math.min(page * productsPerPage, totalProducts);
+            
+            List<Product> paginatedProducts = dao.getAllProductByPage(allProducts, start, end);
+            
+            // Set attributes for the view
+            request.setAttribute("products", paginatedProducts);
+            request.setAttribute("categories", categories);
+            request.setAttribute("page", page);
+            request.setAttribute("totalPages", totalPages);
+            
+            // Set CSS file for the page
+            request.setAttribute("cssfile", "list.css");
+            
+            // Forward to list page
+            request.getRequestDispatcher(LIST_JSP).forward(request, response);
+            
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error retrieving product list", e);
+            response.sendRedirect(HOME_SERVLET);
+        }
     }
 
     /**
      * Handles the HTTP <code>POST</code> method.
+     * Redirects to GET method
      *
      * @param request servlet request
      * @param response servlet response
@@ -104,7 +124,7 @@ public class ListServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        processRequest(request, response);
+        doGet(request, response);
     }
 
     /**
@@ -114,7 +134,6 @@ public class ListServlet extends HttpServlet {
      */
     @Override
     public String getServletInfo() {
-        return "Short description";
-    }// </editor-fold>
-
+        return "Product List Management Servlet for GameStore";
+    }
 }

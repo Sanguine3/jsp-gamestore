@@ -24,6 +24,9 @@ import model.Product;
 @WebServlet(name = "HomeServlet", urlPatterns = {"/home"})
 public class HomeServlet extends HttpServlet {
 
+    // Default products per page
+    private static final int DEFAULT_PRODUCTS_PER_PAGE = 8;
+
     /**
      * Processes requests for both HTTP <code>GET</code> and <code>POST</code>
      * methods.
@@ -37,7 +40,7 @@ public class HomeServlet extends HttpServlet {
             throws ServletException, IOException {
         response.setContentType("text/html;charset=UTF-8");
         request.setCharacterEncoding("utf-8");
-        try (PrintWriter out = response.getWriter()) {
+        try (var out = response.getWriter()) {
             /* TODO output your page here. You may use following sample code. */
             out.println("<!DOCTYPE html>");
             out.println("<html>");
@@ -63,27 +66,46 @@ public class HomeServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        DAO d = new DAO();
-        List<Product> product = d.getAllProduct();
-        List<Category> categories = d.getAllCategory();
-        int page, ppp = 8;
-        int size = product.size();
-        int num = (size % 8 == 0 ? (size / 8) : ((size / 8) + 1));
-        String xpage = request.getParameter("page");
+        var dao = new DAO();
+        var product = dao.getAllProduct();
+        var categories = dao.getAllCategory();
+        
+        // Get products per page from configuration or use default
+        int productsPerPage;
+        var configPpp = getServletContext().getInitParameter("productsPerPage");
+        if(configPpp != null) {
+            try {
+                productsPerPage = Integer.parseInt(configPpp);
+            } catch (NumberFormatException e) {
+                productsPerPage = DEFAULT_PRODUCTS_PER_PAGE;
+            }
+        } else {
+            productsPerPage = DEFAULT_PRODUCTS_PER_PAGE;
+        }
+        
+        int page;
+        var size = product.size();
+        var num = (size % productsPerPage == 0) ? (size / productsPerPage) : ((size / productsPerPage) + 1);
+        var xpage = request.getParameter("page");
         if(xpage == null){
             page = 1;
         }else{
             page = Integer.parseInt(xpage);
         }
-        int start, end;
-        start = (page - 1) * ppp;
-        end = Math.min(page * ppp, size);
-        List<Product> products = d.getAllProductByPage(product, start, end);
+        
+        int start = (page - 1) * productsPerPage;
+        int end = Math.min(page * productsPerPage, size);
+        
+        var products = dao.getAllProductByPage(product, start, end);
+        
+        // Set CSS file for the page
+        request.setAttribute("cssfile", "home.css");
         
         request.setAttribute("categories", categories);
         request.setAttribute("products", products);
         request.setAttribute("page", page);
         request.setAttribute("num", num);
+        
         request.getRequestDispatcher("home.jsp").forward(request, response);
     }
 
@@ -108,7 +130,7 @@ public class HomeServlet extends HttpServlet {
      */
     @Override
     public String getServletInfo() {
-        return "Short description";
+        return "Home Servlet for GameStore";
     }// </editor-fold>
 
 }

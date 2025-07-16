@@ -7,8 +7,9 @@ package controller;
 
 import dal.DAO;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -18,42 +19,21 @@ import jakarta.servlet.http.HttpSession;
 import model.Account;
 
 /**
+ * Handles account management functionality
  *
  * @author huanv
  */
 @WebServlet(name = "AccountServlet", urlPatterns = {"/account"})
 public class AccountServlet extends HttpServlet {
+    private static final Logger LOGGER = Logger.getLogger(AccountServlet.class.getName());
+    private static final String ACCOUNT_JSP = "account.jsp";
+    private static final String HOME_SERVLET = "home";
+    private static final String SESSION_ACCOUNT_KEY = "account";
+    private static final int ADMIN_LEVEL = 1;
 
-    /**
-     * Processes requests for both HTTP <code>GET</code> and <code>POST</code>
-     * methods.
-     *
-     * @param request servlet request
-     * @param response servlet response
-     * @throws ServletException if a servlet-specific error occurs
-     * @throws IOException if an I/O error occurs
-     */
-    protected void processRequest(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        response.setContentType("text/html;charset=UTF-8");
-        request.setCharacterEncoding("utf-8");
-        try (PrintWriter out = response.getWriter()) {
-            /* TODO output your page here. You may use following sample code. */
-            out.println("<!DOCTYPE html>");
-            out.println("<html>");
-            out.println("<head>");
-            out.println("<title>Servlet AccountServlet</title>");            
-            out.println("</head>");
-            out.println("<body>");
-            out.println("<h1>Servlet AccountServlet at " + request.getContextPath() + "</h1>");
-            out.println("</body>");
-            out.println("</html>");
-        }
-    }
-
-    // <editor-fold defaultstate="collapsed" desc="HttpServlet methods. Click on the + sign on the left to edit the code.">
     /**
      * Handles the HTTP <code>GET</code> method.
+     * Displays the account management page
      *
      * @param request servlet request
      * @param response servlet response
@@ -63,37 +43,71 @@ public class AccountServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        HttpSession session = request.getSession();
-        Account a = (Account) session.getAttribute("account");
-        if(a == null){
-            request.getRequestDispatcher("home").forward(request, response);
-        }
-        else{
-            DAO d = new DAO();
-            List<Account> account = d.getAllAccountNotAdmin();
-            int page, ppp = 8;
-        int size = account.size();
-        int num = (size % 8 == 0 ? (size / 8) : ((size / 8) + 1));
-        String xpage = request.getParameter("page");
-        if(xpage == null){
-            page = 1;
-        }else{
-            page = Integer.parseInt(xpage);
-        }
-        int start, end;
-        start = (page - 1) * ppp;
-        end = Math.min(page * ppp, size);
-        List<Account> accounts = d.getAllAccountByPage(account, start, end);
+        response.setContentType("text/html;charset=UTF-8");
+        request.setCharacterEncoding("utf-8");
         
-        request.setAttribute("accounts", accounts);
-        request.setAttribute("page", page);
-        request.setAttribute("num", num);
-        request.getRequestDispatcher("account.jsp").forward(request, response);
-        }   
+        // Check if user is admin
+        HttpSession session = request.getSession();
+        Account account = (Account) session.getAttribute(SESSION_ACCOUNT_KEY);
+        
+        if (account == null || account.getAdminLevel() != ADMIN_LEVEL) {
+            LOGGER.log(Level.WARNING, "Unauthorized access attempt to account management");
+            response.sendRedirect(HOME_SERVLET);
+            return;
+        }
+        
+        try (DAO dao = new DAO()) {
+            // Get all accounts
+            List<Account> accounts = dao.getAllAccounts();
+            
+            // Set CSS file for the page
+            request.setAttribute("cssfile", "crud.css");
+            request.setAttribute("accounts", accounts);
+            
+            // Get page parameters for pagination
+            int page = 1;
+            int accountsPerPage = 5;
+            String pageParam = request.getParameter("page");
+            
+            if (pageParam != null && !pageParam.trim().isEmpty()) {
+                try {
+                    page = Integer.parseInt(pageParam);
+                    if (page < 1) {
+                        page = 1;
+                    }
+                } catch (NumberFormatException e) {
+                    LOGGER.log(Level.WARNING, "Invalid page number: {0}", pageParam);
+                }
+            }
+            
+            int totalAccounts = accounts.size();
+            int totalPages = (totalAccounts + accountsPerPage - 1) / accountsPerPage;
+            
+            if (page > totalPages && totalPages > 0) {
+                page = totalPages;
+            }
+            
+            int start = (page - 1) * accountsPerPage;
+            int end = Math.min(page * accountsPerPage, totalAccounts);
+            
+            List<Account> paginatedAccounts = dao.getAllAccountByPage(accounts, start, end);
+            
+            request.setAttribute("accounts", paginatedAccounts);
+            request.setAttribute("page", page);
+            request.setAttribute("totalPages", totalPages);
+            
+            // Forward to account management page
+            request.getRequestDispatcher(ACCOUNT_JSP).forward(request, response);
+            
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error retrieving account information", e);
+            response.sendRedirect(HOME_SERVLET);
+        }
     }
 
     /**
      * Handles the HTTP <code>POST</code> method.
+     * Currently not implemented - redirects to GET
      *
      * @param request servlet request
      * @param response servlet response
@@ -103,7 +117,8 @@ public class AccountServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        processRequest(request, response);
+        // Redirect to GET method
+        doGet(request, response);
     }
 
     /**
@@ -113,7 +128,6 @@ public class AccountServlet extends HttpServlet {
      */
     @Override
     public String getServletInfo() {
-        return "Short description";
-    }// </editor-fold>
-
+        return "Account Management Servlet for GameStore";
+    }
 }

@@ -1,56 +1,42 @@
 /*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/JSP_Servlet/Servlet.java to edit this template
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
  */
-
 package controller;
 
-import com.google.gson.Gson;
 import dal.DAO;
 import java.io.IOException;
-import java.io.PrintWriter;
+import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.util.List;
+import jakarta.servlet.http.HttpSession;
+import model.Account;
+import model.Category;
 import model.Product;
 
 /**
+ * Handles chart display functionality
  *
- * @author 5555
+ * @author huanv
  */
-@WebServlet(name="ChartServlet", urlPatterns={"/chart"})
+@WebServlet(name = "ChartServlet", urlPatterns = {"/chart"})
 public class ChartServlet extends HttpServlet {
-   
-    /** 
-     * Processes requests for both HTTP <code>GET</code> and <code>POST</code> methods.
-     * @param request servlet request
-     * @param response servlet response
-     * @throws ServletException if a servlet-specific error occurs
-     * @throws IOException if an I/O error occurs
-     */
-    protected void processRequest(HttpServletRequest request, HttpServletResponse response)
-    throws ServletException, IOException {
-        response.setContentType("text/html;charset=UTF-8");
-        try (PrintWriter out = response.getWriter()) {
-            /* TODO output your page here. You may use following sample code. */
-            out.println("<!DOCTYPE html>");
-            out.println("<html>");
-            out.println("<head>");
-            out.println("<title>Servlet ChartServlet</title>");  
-            out.println("</head>");
-            out.println("<body>");
-            out.println("<h1>Servlet ChartServlet at " + request.getContextPath () + "</h1>");
-            out.println("</body>");
-            out.println("</html>");
-        }
-    } 
+    private static final Logger LOGGER = Logger.getLogger(ChartServlet.class.getName());
+    private static final String CHART_JSP = "chart.jsp";
+    private static final String HOME_SERVLET = "home";
+    private static final String SESSION_ACCOUNT_KEY = "account";
+    private static final int ADMIN_LEVEL = 1;
 
-    // <editor-fold defaultstate="collapsed" desc="HttpServlet methods. Click on the + sign on the left to edit the code.">
-    /** 
+    /**
      * Handles the HTTP <code>GET</code> method.
+     * Displays the chart page with product data
+     *
      * @param request servlet request
      * @param response servlet response
      * @throws ServletException if a servlet-specific error occurs
@@ -58,24 +44,49 @@ public class ChartServlet extends HttpServlet {
      */
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
-    throws ServletException, IOException {
-        Product p = new Product();
-        Gson gson = new Gson();
-        DAO d = new DAO();
+            throws ServletException, IOException {
+        response.setContentType("text/html;charset=UTF-8");
+        request.setCharacterEncoding("utf-8");
         
-        List<Product> list = d.getAllProductByTop10();
-        List<Product> list2 = d.getAllProductByRating();
-        request.setAttribute("products", list);
-        request.setAttribute("products2", list2);
+        // Check if user is admin
+        HttpSession session = request.getSession();
+        Account account = (Account) session.getAttribute(SESSION_ACCOUNT_KEY);
         
-//        String jsonString = gson.toJson(list);
-//        response.setContentType("application/json");
-//        response.getWriter().write(jsonString);
-        request.getRequestDispatcher("chart.jsp").forward(request, response);
-    } 
+        if (account == null || account.getAdminLevel() != ADMIN_LEVEL) {
+            LOGGER.log(Level.WARNING, "Unauthorized access attempt to chart page");
+            response.sendRedirect(HOME_SERVLET);
+            return;
+        }
+        
+        try (DAO dao = new DAO()) {
+            // Get top products by price for chart display
+            List<Product> topProducts = dao.getAllProductByTop10();
+            
+            // Get top products by rating for chart display
+            List<Product> topRatedProducts = dao.getAllProductByRating();
+            
+            // Get all categories for navigation
+            List<Category> categories = dao.getAllCategory();
+            
+            // Set CSS file for the page
+            request.setAttribute("cssfile", "crud.css");
+            request.setAttribute("topProducts", topProducts);
+            request.setAttribute("topRatedProducts", topRatedProducts);
+            request.setAttribute("categories", categories);
+            
+            // Forward to chart page
+            request.getRequestDispatcher(CHART_JSP).forward(request, response);
+            
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error retrieving data for chart display", e);
+            response.sendRedirect(HOME_SERVLET);
+        }
+    }
 
-    /** 
+    /**
      * Handles the HTTP <code>POST</code> method.
+     * Redirects to GET method
+     *
      * @param request servlet request
      * @param response servlet response
      * @throws ServletException if a servlet-specific error occurs
@@ -83,17 +94,17 @@ public class ChartServlet extends HttpServlet {
      */
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
-    throws ServletException, IOException {
-        processRequest(request, response);
+            throws ServletException, IOException {
+        doGet(request, response);
     }
 
-    /** 
+    /**
      * Returns a short description of the servlet.
+     *
      * @return a String containing servlet description
      */
     @Override
     public String getServletInfo() {
-        return "Short description";
-    }// </editor-fold>
-
+        return "Chart Display Servlet for GameStore";
+    }
 }

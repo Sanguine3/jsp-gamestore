@@ -7,6 +7,7 @@ package model;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 
 public class Cart {
@@ -29,46 +30,43 @@ public class Cart {
         this.items = items;
     }
 
-    // lay item
-    private Item getItemByID(int id) {
-        for (Item i : items) {
-            if (i.getProduct().getId() == id) {
-                return i;
-            }
-        }
-        return null;
+    // Get item by ID using Java 11 streams and Optional
+    private Optional<Item> findItemByID(int id) {
+        return items.stream()
+                   .filter(item -> item.getProduct().getId() == id)
+                   .findFirst();
     }
 
-    // mua them tim san trong gio hang
+    // Get item by ID
+    private Item getItemByID(int id) {
+        return findItemByID(id).orElse(null);
+    }
+
+    // Get quantity by ID
     public int getQuantityByID(int id) {
-        return getItemByID(id).getQuantity();
+        return findItemByID(id)
+                .map(Item::getQuantity)
+                .orElse(0);
     }
 
     public void addItem(Item t) {
-        // san pham co san
-        if (getItemByID(t.getProduct().getId()) != null) {
-            Item m = getItemByID(t.getProduct().getId());
-            m.setQuantity(m.getQuantity() + t.getQuantity());
-        } // neu san pham chua co thi add vao list
-        else {
-            items.add(t);
-        }
+        findItemByID(t.getProduct().getId())
+                .ifPresentOrElse(
+                    // If item exists, increase quantity
+                    existingItem -> existingItem.setQuantity(existingItem.getQuantity() + t.getQuantity()),
+                    // If item doesn't exist, add to list
+                    () -> items.add(t)
+                );
     }
 
     public void removeItem(int id) {
-        // neu san pham co trong gio hang
-        if (getItemByID(id) != null) {
-            //xoa
-            items.remove(getItemByID(id));
-        }
+        findItemByID(id).ifPresent(item -> items.remove(item));
     }
 
-    // tong so tien
+    // Calculate total money using streams
     public float getTotalMoney() {
-        float t = 0;
-        for (Item i : items) {
-            t += i.getQuantity() * i.getProduct().getPrice();
-        }
-        return t;
+        return (float) items.stream()
+                .mapToDouble(item -> item.getQuantity() * item.getProduct().getPrice())
+                .sum();
     }
 }

@@ -7,50 +7,32 @@ package controller;
 
 import dal.DAO;
 import java.io.IOException;
-import java.io.PrintWriter;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
+import model.Account;
 
 /**
+ * Handles product deletion functionality
  *
  * @author huanv
  */
 @WebServlet(name = "DeleteServlet", urlPatterns = {"/delete"})
 public class DeleteServlet extends HttpServlet {
+    private static final Logger LOGGER = Logger.getLogger(DeleteServlet.class.getName());
+    private static final String LIST_SERVLET = "list";
+    private static final String HOME_SERVLET = "home";
+    private static final String SESSION_ACCOUNT_KEY = "account";
+    private static final int ADMIN_LEVEL = 1;
 
-    /**
-     * Processes requests for both HTTP <code>GET</code> and <code>POST</code>
-     * methods.
-     *
-     * @param request servlet request
-     * @param response servlet response
-     * @throws ServletException if a servlet-specific error occurs
-     * @throws IOException if an I/O error occurs
-     */
-    protected void processRequest(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        response.setContentType("text/html;charset=UTF-8");
-        request.setCharacterEncoding("utf-8");
-        try (PrintWriter out = response.getWriter()) {
-            /* TODO output your page here. You may use following sample code. */
-            out.println("<!DOCTYPE html>");
-            out.println("<html>");
-            out.println("<head>");
-            out.println("<title>Servlet DeleteServlet</title>");            
-            out.println("</head>");
-            out.println("<body>");
-            out.println("<h1>Servlet DeleteServlet at " + request.getContextPath() + "</h1>");
-            out.println("</body>");
-            out.println("</html>");
-        }
-    }
-
-    // <editor-fold defaultstate="collapsed" desc="HttpServlet methods. Click on the + sign on the left to edit the code.">
     /**
      * Handles the HTTP <code>GET</code> method.
+     * Processes product deletion request
      *
      * @param request servlet request
      * @param response servlet response
@@ -60,14 +42,46 @@ public class DeleteServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        String pid = request.getParameter("pid");
-        DAO d = new DAO();
-        d.delete(pid);
-        response.sendRedirect("list");
+        response.setContentType("text/html;charset=UTF-8");
+        request.setCharacterEncoding("utf-8");
+        
+        // Check if user is admin
+        HttpSession session = request.getSession();
+        Account account = (Account) session.getAttribute(SESSION_ACCOUNT_KEY);
+        
+        if (account == null || account.getAdminLevel() != ADMIN_LEVEL) {
+            LOGGER.log(Level.WARNING, "Unauthorized access attempt to delete product");
+            response.sendRedirect(HOME_SERVLET);
+            return;
+        }
+        
+        String productId = request.getParameter("pid");
+        
+        // Validate product ID
+        if (productId == null || productId.trim().isEmpty()) {
+            LOGGER.log(Level.WARNING, "Product ID not provided for deletion");
+            response.sendRedirect(LIST_SERVLET);
+            return;
+        }
+        
+        try (DAO dao = new DAO()) {
+            // Delete the product
+            dao.delete(productId);
+            LOGGER.log(Level.INFO, "Product deleted successfully: {0}", productId);
+            
+            // Redirect back to product list
+            response.sendRedirect(LIST_SERVLET);
+            
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error deleting product with ID: " + productId, e);
+            request.setAttribute("errorMessage", "An error occurred while deleting the product");
+            response.sendRedirect(LIST_SERVLET);
+        }
     }
 
     /**
      * Handles the HTTP <code>POST</code> method.
+     * Redirects to GET method
      *
      * @param request servlet request
      * @param response servlet response
@@ -77,7 +91,7 @@ public class DeleteServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        processRequest(request, response);
+        doGet(request, response);
     }
 
     /**
@@ -87,7 +101,6 @@ public class DeleteServlet extends HttpServlet {
      */
     @Override
     public String getServletInfo() {
-        return "Short description";
-    }// </editor-fold>
-
+        return "Product Deletion Servlet for GameStore";
+    }
 }

@@ -7,8 +7,9 @@ package controller;
 
 import dal.DAO;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -20,42 +21,20 @@ import model.Item;
 import model.Product;
 
 /**
+ * Handles cart processing operations including updating quantities and removing items
  *
  * @author huanv
  */
 @WebServlet(name = "ProcessServlet", urlPatterns = {"/process"})
 public class ProcessServlet extends HttpServlet {
+    private static final Logger LOGGER = Logger.getLogger(ProcessServlet.class.getName());
+    private static final String SESSION_CART_KEY = "cart";
+    private static final String SESSION_SIZE_KEY = "size";
+    private static final String CART_JSP = "cart.jsp";
 
-    /**
-     * Processes requests for both HTTP <code>GET</code> and <code>POST</code>
-     * methods.
-     *
-     * @param request servlet request
-     * @param response servlet response
-     * @throws ServletException if a servlet-specific error occurs
-     * @throws IOException if an I/O error occurs
-     */
-    protected void processRequest(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        response.setContentType("text/html;charset=UTF-8");
-        request.setCharacterEncoding("utf-8");
-        try (PrintWriter out = response.getWriter()) {
-            /* TODO output your page here. You may use following sample code. */
-            out.println("<!DOCTYPE html>");
-            out.println("<html>");
-            out.println("<head>");
-            out.println("<title>Servlet ProcessServlet</title>");
-            out.println("</head>");
-            out.println("<body>");
-            out.println("<h1>Servlet ProcessServlet at " + request.getContextPath() + "</h1>");
-            out.println("</body>");
-            out.println("</html>");
-        }
-    }
-
-    // <editor-fold defaultstate="collapsed" desc="HttpServlet methods. Click on the + sign on the left to edit the code.">
     /**
      * Handles the HTTP <code>GET</code> method.
+     * Updates item quantity in the cart
      *
      * @param request servlet request
      * @param response servlet response
@@ -65,45 +44,61 @@ public class ProcessServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
+        response.setContentType("text/html;charset=UTF-8");
+        request.setCharacterEncoding("utf-8");
+        
         HttpSession session = request.getSession();
-        Cart cart = null;
-        Object o = session.getAttribute("cart");
-        // in the cart
-        if (o != null) {
-            cart = (Cart) o;
-            // null in the cart
-        } else {
-            cart = new Cart();
+        Cart cart = getCartFromSession(session);
+        
+        String numRaw = request.getParameter("num");
+        String idRaw = request.getParameter("id");
+        
+        // Validate parameters
+        if (numRaw == null || idRaw == null || numRaw.trim().isEmpty() || idRaw.trim().isEmpty()) {
+            LOGGER.log(Level.WARNING, "Invalid parameters for cart update: num={0}, id={1}", new Object[]{numRaw, idRaw});
+            response.sendRedirect(CART_JSP);
+            return;
         }
-        String num_raw = request.getParameter("num").trim();
-        String id_raw = request.getParameter("id");
-        int id, num;
+        
         try {
-            id = Integer.parseInt(id_raw);
-            num = Integer.parseInt(num_raw);
+            int id = Integer.parseInt(idRaw);
+            int num = Integer.parseInt(numRaw.trim());
+            
+            // Handle item removal if quantity becomes zero or negative
             if ((num == -1) && (cart.getQuantityByID(id) <= 1)) {
                 cart.removeItem(id);
+                LOGGER.log(Level.INFO, "Removed item {0} from cart", id);
             } else {
-                DAO d = new DAO();
-                Product p = d.getProductByProductID(id_raw);
-                float price = p.getPrice();
-                Item t = new Item(p, num, price);
-                cart.addItem(t);
-
+                // Update item quantity
+                try (DAO dao = new DAO()) {
+                    Product product = dao.getProductByProductID(id);
+                    if (product != null) {
+                        double price = product.getPrice();
+                        Item item = new Item(product, num, price);
+                        cart.addItem(item);
+                        LOGGER.log(Level.INFO, "Updated item {0} quantity to {1}", new Object[]{id, cart.getQuantityByID(id)});
+                    } else {
+                        LOGGER.log(Level.WARNING, "Product not found with ID: {0}", id);
+                    }
+                } catch (Exception e) {
+                    LOGGER.log(Level.SEVERE, "Error retrieving product information", e);
+                }
             }
+            
+            // Update session attributes
+            updateCartSession(session, cart);
+            
+            // Forward to cart page
+            request.getRequestDispatcher(CART_JSP).forward(request, response);
         } catch (NumberFormatException e) {
-            System.out.println(e);
+            LOGGER.log(Level.WARNING, "Invalid number format in cart processing", e);
+            response.sendRedirect(CART_JSP);
         }
-
-        List<Item> list = cart.getItems();
-        session.setAttribute("cart", cart);
-        session.setAttribute("size", list.size());
-        request.getRequestDispatcher("cart.jsp").forward(request, response);
-
     }
 
     /**
      * Handles the HTTP <code>POST</code> method.
+     * Removes an item from the cart
      *
      * @param request servlet request
      * @param response servlet response
@@ -113,23 +108,35 @@ public class ProcessServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
+        response.setContentType("text/html;charset=UTF-8");
+        request.setCharacterEncoding("utf-8");
+        
         HttpSession session = request.getSession();
-        Cart cart = null;
-        Object o = session.getAttribute("cart");
-        // in the cart
-        if (o != null) {
-            cart = (Cart) o;
-            // null in the cart
-        } else {
-            cart = new Cart();
+        Cart cart = getCartFromSession(session);
+        
+        String idRaw = request.getParameter("id");
+        
+        // Validate parameter
+        if (idRaw == null || idRaw.trim().isEmpty()) {
+            LOGGER.log(Level.WARNING, "Invalid ID parameter for item removal");
+            response.sendRedirect(CART_JSP);
+            return;
         }
-        int id = Integer.parseInt(request.getParameter("id"));
-        cart.removeItem(id);
-
-        List<Item> list = cart.getItems();
-        session.setAttribute("cart", cart);
-        session.setAttribute("size", list.size());
-        request.getRequestDispatcher("cart.jsp").forward(request, response);
+        
+        try {
+            int id = Integer.parseInt(idRaw);
+            cart.removeItem(id);
+            LOGGER.log(Level.INFO, "Removed item {0} from cart", id);
+            
+            // Update session attributes
+            updateCartSession(session, cart);
+            
+            // Forward to cart page
+            request.getRequestDispatcher(CART_JSP).forward(request, response);
+        } catch (NumberFormatException e) {
+            LOGGER.log(Level.WARNING, "Invalid ID format for item removal", e);
+            response.sendRedirect(CART_JSP);
+        }
     }
 
     /**
@@ -139,7 +146,29 @@ public class ProcessServlet extends HttpServlet {
      */
     @Override
     public String getServletInfo() {
-        return "Short description";
-    }// </editor-fold>
-
+        return "Process Servlet for cart operations";
+    }
+    
+    /**
+     * Helper method to get cart from session or create new one if not exists
+     * 
+     * @param session The HTTP session
+     * @return The cart object
+     */
+    private Cart getCartFromSession(HttpSession session) {
+        Object cartObj = session.getAttribute(SESSION_CART_KEY);
+        return (cartObj != null) ? (Cart) cartObj : new Cart();
+    }
+    
+    /**
+     * Helper method to update cart in session
+     * 
+     * @param session The HTTP session
+     * @param cart The cart to store in session
+     */
+    private void updateCartSession(HttpSession session, Cart cart) {
+        List<Item> items = cart.getItems();
+        session.setAttribute(SESSION_CART_KEY, cart);
+        session.setAttribute(SESSION_SIZE_KEY, items.size());
+    }
 }

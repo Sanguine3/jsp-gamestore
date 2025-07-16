@@ -2,20 +2,13 @@
 
 
 <%@page contentType="text/html" pageEncoding="UTF-8"%>
+<%@taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core"%>
 <!doctype html>
 <html lang="en">
     <head>
-        <link rel="icon" href="https://static.vecteezy.com/system/resources/previews/002/061/701/original/video-games-icon-with-tv-and-gamepad-eps-vector.jpg">
         <title>Login</title>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-
-        <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700&display=swap" rel="stylesheet">
-
-        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
-
-        <link rel="stylesheet" href="css/login.css">
-
+        <!-- Page-specific stylesheet removed: using common.css globally -->
+        <jsp:include page="common/header.jsp" />
     </head>
     <body style="background-image: url(https://steamcdn-a.akamaihd.net/steamcommunity/public/images/items/292030/a42ae88904d993d7d59341e265db211f4966fc3b.jpg); background-position:center; background-size: cover;">
         <section class="ftco-section">
@@ -35,7 +28,7 @@
                                         <h3 class="mb-4 text-center">Sign In</h3>
                                     </div>
                                 </div>
-                                <form action="login" method="post" class="signin-form">
+                                <form action="${pageContext.request.contextPath}/login" method="post" class="signin-form">
                                     <p class="text-danger">${requestScope.error}</p>
                                     <div class="form-group mt-3">
                                         <input name="user" type="text" class="form-control" required value="${cookie.user.value}">
@@ -44,7 +37,6 @@
                                     <div class="form-group">
                                         <input name="pass" id="password-field" type="password" class="form-control" required value="${cookie.pass.value}">
                                         <label class="form-control-placeholder" for="password">Password</label>
-
                                     </div>
                                     <div class="form-group">
                                         <button type="submit" class="form-control btn btn-primary rounded submit px-3">Sign In</button>
@@ -57,23 +49,17 @@
                                             </label>
                                         </div>
                                         <div class="w-50 text-md-right">
-
                                         </div>
                                     </div>
                                 </form>
-                                <p class="text-center">Don't have an account? <a href="register.jsp">Sign Up</a></p>
+                                <p class="text-center">Don't have an account? <a href="${pageContext.request.contextPath}/register.jsp">Sign Up</a></p>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
         </section>
-
-        <script src="js/jquery.min.js"></script>
-        <script src="js/popper.js"></script>
-        <script src="js/bootstrap.min.js"></script>
-        <script src="js/main.js"></script>
-
+        <jsp:include page="common/scripts.jsp" />
     </body>
 </html>
 

@@ -7,7 +7,8 @@ package controller;
 
 import dal.DAO;
 import java.io.IOException;
-import java.io.PrintWriter;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.Cookie;
@@ -18,42 +19,19 @@ import jakarta.servlet.http.HttpSession;
 import model.Account;
 
 /**
- *
+ * Handles user authentication and login functionality
+ * 
  * @author huanv
  */
 @WebServlet(name = "LoginServlet", urlPatterns = {"/login"})
 public class LoginServlet extends HttpServlet {
+    private static final Logger LOGGER = Logger.getLogger(LoginServlet.class.getName());
+    private static final int COOKIE_MAX_AGE = 86400 * 30; // 30 days
+    private static final String SESSION_ACCOUNT_KEY = "account";
 
-    /**
-     * Processes requests for both HTTP <code>GET</code> and <code>POST</code>
-     * methods.
-     *
-     * @param request servlet request
-     * @param response servlet response
-     * @throws ServletException if a servlet-specific error occurs
-     * @throws IOException if an I/O error occurs
-     */
-    protected void processRequest(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        response.setContentType("text/html;charset=UTF-8");
-        request.setCharacterEncoding("utf-8");
-        try (PrintWriter out = response.getWriter()) {
-            /* TODO output your page here. You may use following sample code. */
-            out.println("<!DOCTYPE html>");
-            out.println("<html>");
-            out.println("<head>");
-            out.println("<title>Servlet LoginServlet</title>");            
-            out.println("</head>");
-            out.println("<body>");
-            out.println("<h1>Servlet LoginServlet at " + request.getContextPath() + "</h1>");
-            out.println("</body>");
-            out.println("</html>");
-        }
-    }
-
-    // <editor-fold defaultstate="collapsed" desc="HttpServlet methods. Click on the + sign on the left to edit the code.">
     /**
      * Handles the HTTP <code>GET</code> method.
+     * Displays the login form or redirects if already logged in.
      *
      * @param request servlet request
      * @param response servlet response
@@ -63,11 +41,24 @@ public class LoginServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        processRequest(request, response);
+        // Check if user is already logged in
+        HttpSession session = request.getSession(false);
+        if (session != null && session.getAttribute(SESSION_ACCOUNT_KEY) != null) {
+            // User is already logged in, redirect to home
+            response.sendRedirect("home");
+            return;
+        }
+        
+        // Set CSS file for the page
+        request.setAttribute("cssfile", "login.css");
+        
+        // Forward to login page
+        request.getRequestDispatcher("login.jsp").forward(request, response);
     }
 
     /**
      * Handles the HTTP <code>POST</code> method.
+     * Processes login form submission.
      *
      * @param request servlet request
      * @param response servlet response
@@ -77,33 +68,77 @@ public class LoginServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        String user = request.getParameter("user");
-        String pass = request.getParameter("pass");
+        response.setContentType("text/html;charset=UTF-8");
+        request.setCharacterEncoding("utf-8");
+        
+        String username = request.getParameter("user");
+        String password = request.getParameter("pass");
         String remember = request.getParameter("remember");
-        DAO d = new DAO();
-        Account a = d.login(user, pass);
-        if(a == null){
-            request.setAttribute("error", "Username or password does not exist!");
+        
+        // Validate input
+        if (username == null || username.trim().isEmpty() || 
+            password == null || password.trim().isEmpty()) {
+            request.setAttribute("error", "Username and password are required!");
             request.getRequestDispatcher("login.jsp").forward(request, response);
-        }else{
-            HttpSession session = request.getSession();
-            session.setAttribute("account", a);
-            Cookie cuser = new Cookie("user", user);
-            Cookie cpass = new Cookie("pass", pass);
-            Cookie cremember = new Cookie("remember", remember);
-            if(remember == null){
-                cuser.setMaxAge(0);
-                cpass.setMaxAge(0);
-                cremember.setMaxAge(0);
-            }else{
-                cuser.setMaxAge(86400 * 365);
-                cpass.setMaxAge(86400 * 365);
-                cremember.setMaxAge(86400 * 365);
+            return;
+        }
+        
+        try (DAO dao = new DAO()) {
+            Account account = dao.login(username, password);
+            
+            if (account == null) {
+                request.setAttribute("error", "Invalid username or password!");
+                request.getRequestDispatcher("login.jsp").forward(request, response);
+                return;
             }
-            response.addCookie(cuser);
-            response.addCookie(cpass);
-            response.addCookie(cremember);
+            
+            // Login successful
+            HttpSession session = request.getSession(true);
+            session.setAttribute(SESSION_ACCOUNT_KEY, account);
+            
+            // Handle "Remember me" functionality
+            if (remember != null) {
+                // Store only the username in a cookie, never the password
+                Cookie usernameCookie = new Cookie("username", username);
+                Cookie rememberCookie = new Cookie("remember", "1");
+                
+                usernameCookie.setMaxAge(COOKIE_MAX_AGE);
+                rememberCookie.setMaxAge(COOKIE_MAX_AGE);
+                
+                // Set cookie path to root
+                usernameCookie.setPath("/");
+                rememberCookie.setPath("/");
+                
+                // Set secure and httpOnly flags for better security
+                usernameCookie.setHttpOnly(true);
+                rememberCookie.setHttpOnly(true);
+                
+                response.addCookie(usernameCookie);
+                response.addCookie(rememberCookie);
+            } else {
+                // Remove any existing cookies
+                Cookie usernameCookie = new Cookie("username", "");
+                Cookie rememberCookie = new Cookie("remember", "");
+                
+                usernameCookie.setMaxAge(0);
+                rememberCookie.setMaxAge(0);
+                
+                usernameCookie.setPath("/");
+                rememberCookie.setPath("/");
+                
+                response.addCookie(usernameCookie);
+                response.addCookie(rememberCookie);
+            }
+            
+            // Log successful login
+            LOGGER.log(Level.INFO, "User {0} logged in successfully", username);
+            
+            // Redirect to home page
             response.sendRedirect("home");
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error during login process", e);
+            request.setAttribute("error", "An error occurred during login. Please try again.");
+            request.getRequestDispatcher("login.jsp").forward(request, response);
         }
     }
 
@@ -114,7 +149,6 @@ public class LoginServlet extends HttpServlet {
      */
     @Override
     public String getServletInfo() {
-        return "Short description";
-    }// </editor-fold>
-
+        return "Login Servlet for GameStore";
+    }
 }

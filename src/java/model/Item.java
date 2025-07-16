@@ -5,19 +5,22 @@
  */
 package model;
 
+import java.util.Objects;
 
 public class Item {
     private Product product;
     private int quantity;
-    private float price;
+    private double price;
+    private double subtotal;
 
     public Item() {
     }
 
-    public Item(Product product, int quantity, float price) {
+    public Item(Product product, int quantity, double price) {
         this.product = product;
         this.quantity = quantity;
         this.price = price;
+        this.calculateSubtotal();
     }
 
     public Product getProduct() {
@@ -34,14 +37,50 @@ public class Item {
 
     public void setQuantity(int quantity) {
         this.quantity = quantity;
+        this.calculateSubtotal();
     }
 
-    public float getPrice() {
+    public double getPrice() {
         return price;
     }
 
-    public void setPrice(float price) {
+    public void setPrice(double price) {
         this.price = price;
+        this.calculateSubtotal();
     }
     
+    public double getSubtotal() {
+        return subtotal;
+    }
+    
+    // Helper method to calculate subtotal
+    private void calculateSubtotal() {
+        this.subtotal = this.quantity * this.price;
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        
+        var item = (Item) obj;
+        return quantity == item.quantity && 
+               Double.compare(item.price, price) == 0 &&
+               Objects.equals(product, item.product);
+    }
+    
+    @Override
+    public int hashCode() {
+        return Objects.hash(product, quantity, price);
+    }
+    
+    @Override
+    public String toString() {
+        return "Item{" +
+               "product=" + (product != null ? product.getName() : "null") +
+               ", quantity=" + quantity +
+               ", price=" + price +
+               ", subtotal=" + subtotal +
+               '}';
+    }
 }

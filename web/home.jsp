@@ -5,16 +5,10 @@
 <!DOCTYPE html>
 <html lang="en">
     <head>
-        <link rel="icon" href="https://static.vecteezy.com/system/resources/previews/002/061/701/original/video-games-icon-with-tv-and-gamepad-eps-vector.jpg">
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-        <meta name="description" content="" />
-        <meta name="author" content="" />
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
         <title>Home</title>
-        <!-- Bootstrap icons-->
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css" rel="stylesheet"/>
-        <!-- Core theme CSS (includes Bootstrap)-->
-        <link href="css/home.css" rel="stylesheet" />
+        <!-- Page-specific stylesheet removed: using common.css globally -->
+        <jsp:include page="/WEB-INF/views/common/header.jsp" />
     </head>
     <body style="background-color: #0d0c0c">
         <jsp:include page="menu.jsp"></jsp:include>
@@ -37,7 +31,7 @@
                         <div class="col mb-5">
                             <div class="card h-100 border-dark">
                                 <!-- Product image-->
-                                <img class="card-img-top" src="${p.image}" alt="..." width="254" height="150">
+                                <img class="card-img-top" src="${p.image}" alt="${p.name}" width="254" height="150">
                                 <!-- Product details-->
                                 <div class="card-body p-4">
                                     <div class="text-center">
@@ -55,14 +49,14 @@
                                     </div>
                                     <!-- Product actions-->
                                     <div class="card-footer p-4 pt-0 border-top-0 bg-transparent">
-                                            <div class="text-center justify-content-center"><a class="btn btn-outline-dark mt-auto" href="detail?pid=${p.id}">View Detail</a></div>
+                                            <div class="text-center justify-content-center"><a class="btn btn-outline-dark mt-auto" href="${pageContext.request.contextPath}/detail?pid=${p.id}">View Detail</a></div>
                                 </div>
                             </div>
                         </div>
                     </c:forEach>
                     <div class="text-center" style="display: inline-block; margin-right:auto; width: 100%">
                         <c:forEach begin="${1}" end="${requestScope.num}" var="i">
-                            <a style='text-decoration: none; color: white;' href="home?page=${i}">
+                            <a style='text-decoration: none; color: white;' href="${pageContext.request.contextPath}/home?page=${i}">
                                 <button style='margin-right: 1px;' class="btn btn-outline-dark ${i == page ? "active" : ""}">
                                     ${i}
                                 </button>
@@ -73,11 +67,7 @@
             </div>
         </section>
         <!-- Footer-->
-        <jsp:include page="footer.jsp"></jsp:include>
-        <!-- Bootstrap core JS-->
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-        <!-- Core theme JS-->
-        <script src="js/scripts.js"></script>
+        <jsp:include page="/WEB-INF/views/common/footer.jsp" />
     </body>
 </html>
 

@@ -1,20 +1,13 @@
 
-
 <%@page contentType="text/html" pageEncoding="UTF-8"%>
-
+<%@taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core"%>
 <!DOCTYPE html>
 <html>
     <head>
-        <link rel="icon" href="https://static.vecteezy.com/system/resources/previews/002/061/701/original/video-games-icon-with-tv-and-gamepad-eps-vector.jpg">
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-        <meta name="description" content="" />
-        <meta name="author" content="" />
-        <!-- Bootstrap icons-->
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css" rel="stylesheet"/>
-        <!-- Core theme CSS (includes Bootstrap)-->
-        <link href="css/home.css" rel="stylesheet" />
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
         <title>About</title>
+        <jsp:include page="common/header.jsp" />
+        <!-- Page-specific stylesheet removed: using common.css globally -->
     </head>
     <body style="background-color: #0d0c0c">
         <jsp:include page="menu.jsp"></jsp:include>
@@ -30,7 +23,7 @@
                 <div class="container">
                     <div style="color: white" class="row">
                         <div class="col-md-5">
-                            <img src="https://wallpapercave.com/wp/wp8830728.jpg" width=100%">
+                            <img src="https://wallpapercave.com/wp/wp8830728.jpg" width="100%" alt="Game image">
                         </div>
                         <div class="col-md-7 py-5 wrap-about pb-md-5">
                             <div class="heading-section-bold mb-4 mt-md-5">
@@ -40,7 +33,7 @@
                             </div>
                             <div class="pb-md-5">
                                 <p>Early access to upcoming titles. Enjoy exclusive deals, regular game updates, and other great benefits. Discover, play, and get in touch with games as they evolve. Be the first to see what's coming and become a part of the ever-changing gaming world.</p>
-                                <p class="text-center"><a href="home" class="btn btn-dark">Shop now</a></p>
+                                <p class="text-center"><a href="${pageContext.request.contextPath}/home" class="btn btn-dark">Shop now</a></p>
                             </div>
                         </div>
                     </div>
@@ -60,7 +53,7 @@
                             </div>
                         </div>
                         <div class="col-md-5">
-                            <img src="https://store.akamai.steamstatic.com/public/images/valveindex/kit_social_media.jpg" width="100%">
+                            <img src="https://store.akamai.steamstatic.com/public/images/valveindex/kit_social_media.jpg" width="100%" alt="VR hardware">
                         </div>
                     </div>
                 </div>

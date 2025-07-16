@@ -7,8 +7,9 @@ package controller;
 
 import dal.DAO;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -18,42 +19,20 @@ import model.Category;
 import model.Product;
 
 /**
+ * Handles product filtering by category
  *
  * @author huanv
  */
 @WebServlet(name = "CategoryServlet", urlPatterns = {"/category"})
 public class CategoryServlet extends HttpServlet {
+    private static final Logger LOGGER = Logger.getLogger(CategoryServlet.class.getName());
+    private static final String HOME_JSP = "home.jsp";
+    private static final String HOME_SERVLET = "home";
+    private static final int DEFAULT_PRODUCTS_PER_PAGE = 8;
 
-    /**
-     * Processes requests for both HTTP <code>GET</code> and <code>POST</code>
-     * methods.
-     *
-     * @param request servlet request
-     * @param response servlet response
-     * @throws ServletException if a servlet-specific error occurs
-     * @throws IOException if an I/O error occurs
-     */
-    protected void processRequest(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        response.setContentType("text/html;charset=UTF-8");
-        request.setCharacterEncoding("utf-8");
-        try (PrintWriter out = response.getWriter()) {
-            /* TODO output your page here. You may use following sample code. */
-            out.println("<!DOCTYPE html>");
-            out.println("<html>");
-            out.println("<head>");
-            out.println("<title>Servlet CategoryServlet</title>");            
-            out.println("</head>");
-            out.println("<body>");
-            out.println("<h1>Servlet CategoryServlet at " + request.getContextPath() + "</h1>");
-            out.println("</body>");
-            out.println("</html>");
-        }
-    }
-
-    // <editor-fold defaultstate="collapsed" desc="HttpServlet methods. Click on the + sign on the left to edit the code.">
     /**
      * Handles the HTTP <code>GET</code> method.
+     * Displays products filtered by category
      *
      * @param request servlet request
      * @param response servlet response
@@ -63,18 +42,89 @@ public class CategoryServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        String catID = request.getParameter("cid");
-        DAO d = new DAO();
-        List<Product> products = d.getAllProductByCategoryID(catID);
-        List<Category> categories = d.getAllCategory();
-        request.setAttribute("products", products);
-        request.setAttribute("categories", categories);
-        request.setAttribute("tag", catID);
-        request.getRequestDispatcher("home.jsp").forward(request, response);
+        response.setContentType("text/html;charset=UTF-8");
+        request.setCharacterEncoding("utf-8");
+        
+        String categoryId = request.getParameter("cid");
+        
+        // Validate category ID
+        if (categoryId == null || categoryId.trim().isEmpty()) {
+            LOGGER.log(Level.WARNING, "Category ID not provided");
+            response.sendRedirect(HOME_SERVLET);
+            return;
+        }
+        
+        try (DAO dao = new DAO()) {
+            // Get all categories for navigation
+            List<Category> categories = dao.getAllCategory();
+            
+            // Get products in the selected category
+            List<Product> products = dao.getAllProductByCategoryID(categoryId);
+            
+            if (products.isEmpty()) {
+                LOGGER.log(Level.INFO, "No products found in category: {0}", categoryId);
+            }
+            
+            // Handle pagination
+            int page = 1;
+            int productsPerPage = DEFAULT_PRODUCTS_PER_PAGE;
+            String pageParam = request.getParameter("page");
+            
+            if (pageParam != null && !pageParam.trim().isEmpty()) {
+                try {
+                    page = Integer.parseInt(pageParam);
+                    if (page < 1) {
+                        page = 1;
+                    }
+                } catch (NumberFormatException e) {
+                    LOGGER.log(Level.WARNING, "Invalid page number: {0}", pageParam);
+                }
+            }
+            
+            int totalProducts = products.size();
+            int totalPages = (totalProducts + productsPerPage - 1) / productsPerPage;
+            
+            if (page > totalPages && totalPages > 0) {
+                page = totalPages;
+            }
+            
+            int start = (page - 1) * productsPerPage;
+            int end = Math.min(page * productsPerPage, totalProducts);
+            
+            List<Product> paginatedProducts = dao.getAllProductByPage(products, start, end);
+            
+            // Find the current category for display
+            Category currentCategory = null;
+            for (Category c : categories) {
+                if (String.valueOf(c.getId()).equals(categoryId)) {
+                    currentCategory = c;
+                    break;
+                }
+            }
+            
+            // Set attributes for the view
+            request.setAttribute("categories", categories);
+            request.setAttribute("products", paginatedProducts);
+            request.setAttribute("currentCategory", currentCategory);
+            request.setAttribute("tag", categoryId); // For highlighting active category
+            request.setAttribute("page", page);
+            request.setAttribute("totalPages", totalPages);
+            
+            // Set CSS file for the page
+            request.setAttribute("cssfile", "home.css");
+            
+            // Forward to home page with filtered products
+            request.getRequestDispatcher(HOME_JSP).forward(request, response);
+            
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error retrieving products by category", e);
+            response.sendRedirect(HOME_SERVLET);
+        }
     }
 
     /**
      * Handles the HTTP <code>POST</code> method.
+     * Redirects to GET method
      *
      * @param request servlet request
      * @param response servlet response
@@ -84,7 +134,7 @@ public class CategoryServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        processRequest(request, response);
+        doGet(request, response);
     }
 
     /**
@@ -94,7 +144,6 @@ public class CategoryServlet extends HttpServlet {
      */
     @Override
     public String getServletInfo() {
-        return "Short description";
-    }// </editor-fold>
-
+        return "Category Filter Servlet for GameStore";
+    }
 }

@@ -7,7 +7,8 @@ package controller;
 
 import dal.DAO;
 import java.io.IOException;
-import java.io.PrintWriter;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -18,42 +19,22 @@ import model.Account;
 import model.Cart;
 
 /**
+ * Handles purchase/checkout functionality
  *
  * @author huanv
  */
 @WebServlet(name = "PurchaseServlet", urlPatterns = {"/purchase"})
 public class PurchaseServlet extends HttpServlet {
+    private static final Logger LOGGER = Logger.getLogger(PurchaseServlet.class.getName());
+    private static final String HOME_SERVLET = "home";
+    private static final String LOGIN_SERVLET = "login";
+    private static final String CART_JSP = "cart.jsp";
+    private static final String SESSION_ACCOUNT_KEY = "account";
+    private static final String SESSION_CART_KEY = "cart";
 
-    /**
-     * Processes requests for both HTTP <code>GET</code> and <code>POST</code>
-     * methods.
-     *
-     * @param request servlet request
-     * @param response servlet response
-     * @throws ServletException if a servlet-specific error occurs
-     * @throws IOException if an I/O error occurs
-     */
-    protected void processRequest(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        response.setContentType("text/html;charset=UTF-8");
-        request.setCharacterEncoding("utf-8");
-        try (PrintWriter out = response.getWriter()) {
-            /* TODO output your page here. You may use following sample code. */
-            out.println("<!DOCTYPE html>");
-            out.println("<html>");
-            out.println("<head>");
-            out.println("<title>Servlet PurchaseServlet</title>");            
-            out.println("</head>");
-            out.println("<body>");
-            out.println("<h1>Servlet PurchaseServlet at " + request.getContextPath() + "</h1>");
-            out.println("</body>");
-            out.println("</html>");
-        }
-    }
-
-    // <editor-fold defaultstate="collapsed" desc="HttpServlet methods. Click on the + sign on the left to edit the code.">
     /**
      * Handles the HTTP <code>GET</code> method.
+     * Processes purchase request
      *
      * @param request servlet request
      * @param response servlet response
@@ -63,34 +44,55 @@ public class PurchaseServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
+        response.setContentType("text/html;charset=UTF-8");
+        request.setCharacterEncoding("utf-8");
+        
         HttpSession session = request.getSession();
-        Cart cart = null;
-        Object o = session.getAttribute("cart");
-       
-        // in the cart
-        if (o != null) {
-            cart = (Cart) o;
-            // null in the cart
-        } else {
-            cart = new Cart();
+        
+        // Check if user is logged in
+        Account account = (Account) session.getAttribute(SESSION_ACCOUNT_KEY);
+        if (account == null) {
+            LOGGER.log(Level.INFO, "Unauthenticated user attempted to make a purchase");
+            request.setAttribute("errorMessage", "Please log in to complete your purchase");
+            response.sendRedirect(LOGIN_SERVLET);
+            return;
         }
-        Account account = null;
-        Object a = session.getAttribute("account");
-        if(a != null){
-            account = (Account) a;
-            DAO d = new DAO();
-            d.addOrder(account, cart);
-            session.removeAttribute("cart");           
-            session.setAttribute("size","0");
-            request.setAttribute("success", "Purchased success! Click here to continue shopping.");
-            request.getRequestDispatcher("cart.jsp").forward(request, response);
-        }else {
-            response.sendRedirect("login.jsp");
+        
+        // Check if cart exists and is not empty
+        Cart cart = (Cart) session.getAttribute(SESSION_CART_KEY);
+        if (cart == null || cart.getItems().isEmpty()) {
+            LOGGER.log(Level.INFO, "Purchase attempted with empty cart");
+            request.setAttribute("errorMessage", "Your cart is empty");
+            request.getRequestDispatcher(CART_JSP).forward(request, response);
+            return;
+        }
+        
+        try (DAO dao = new DAO()) {
+            // Process the order
+            dao.addOrder(account, cart);
+            LOGGER.log(Level.INFO, "Purchase completed successfully for user ID: {0}, Total: {1}", 
+                    new Object[]{account.getId(), cart.getTotalMoney()});
+            
+            // Clear the cart after successful purchase
+            session.removeAttribute(SESSION_CART_KEY);
+            session.setAttribute("size", 0);
+            
+            // Set success message
+            request.setAttribute("successMessage", "Your purchase has been completed successfully!");
+            
+            // Redirect to home page
+            response.sendRedirect(HOME_SERVLET);
+            
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error processing purchase", e);
+            request.setAttribute("errorMessage", "An error occurred while processing your purchase. Please try again.");
+            request.getRequestDispatcher(CART_JSP).forward(request, response);
         }
     }
 
     /**
      * Handles the HTTP <code>POST</code> method.
+     * Redirects to GET method
      *
      * @param request servlet request
      * @param response servlet response
@@ -100,7 +102,7 @@ public class PurchaseServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        processRequest(request, response);
+        doGet(request, response);
     }
 
     /**
@@ -110,7 +112,6 @@ public class PurchaseServlet extends HttpServlet {
      */
     @Override
     public String getServletInfo() {
-        return "Short description";
-    }// </editor-fold>
-
+        return "Purchase Servlet for GameStore";
+    }
 }
