@@ -21,7 +21,7 @@ public class DBContext implements AutoCloseable {
     private static final String DB_POOL_NAME = "jdbc/gameStoreDB";
     
     // Default database properties - should be moved to a properties file in production
-    private static final String DEFAULT_URL = "jdbc:postgresql://localhost:5432/gamestore";
+    private static final String DEFAULT_URL = "jdbc:postgresql://localhost:5432/GameStore";
     private static final String DEFAULT_USER = "postgres";
     private static final String DEFAULT_PASSWORD = "postgres";
     

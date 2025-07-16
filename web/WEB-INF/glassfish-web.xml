@@ -1,4 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<tomcat-web-app version="10.0">
-  <context-root>/myproject</context-root>
-</tomcat-web-app>
