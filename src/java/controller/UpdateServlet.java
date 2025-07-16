@@ -152,7 +152,8 @@ public class UpdateServlet extends HttpServlet {
             }
             
             try (DAO dao = new DAO()) {
-                dao.update(name, image, price, description, categoryId, releaseDate, rating, id);
+                int productId = Integer.parseInt(id);
+                dao.update(name, image, price, description, categoryId, releaseDate, rating, productId);
                 LOGGER.log(Level.INFO, "Product updated successfully: {0}", id);
                 response.sendRedirect(LIST_SERVLET);
             }
